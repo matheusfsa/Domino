@@ -83,6 +83,7 @@ class Pedra:
         self.position = position
 
     def __eq__(self, other):
+        print("Comp ",self.valor)
         if self.valor[0] == other.valor[0] and self.valor[1] == other.valor[1]:
             return True
         if self.valor[0] == other.valor[1] and self.valor[1] == other.valor[0]:
@@ -132,7 +133,6 @@ class Domino(Game):
         return pedras
 
     def escolhe_pedras(self):
-        p = []
         pedras = self.pedras.copy()
         n = len(self.pedras)
         jogadores = [[] for i in range(4)]
@@ -147,7 +147,7 @@ class Domino(Game):
     def actions(self, state):
         moves = []
         n = len(state.board)
-        if n!= 0:
+        if n != 0:
             pontas = (state.board[0], state.board[n-1])
         i = 0
         if state.to_move == 0:
@@ -183,7 +183,7 @@ class Domino(Game):
     def compute_utility(self, to_move, pedras, pedras_restantes, board, move):
         n = len(board)
 
-        if move.valor[0] == -1 and n != 0:
+        if move[0].valor[0] == -1 and n != 0:
             for p in pedras_restantes:
                 pontas = (board[0], board[n - 1])
                 if p.igual(pontas[0]) == True or p.igual(pontas[1]) == True:
@@ -206,7 +206,7 @@ class Domino(Game):
                     return 4
                 else:
                     return -1
-        elif move.valor[0] != -1:
+        elif move[0].valor[0] != -1:
             if to_move == 0:
                 if len(pedras) == 1:
                     return 4
@@ -246,20 +246,26 @@ class Domino(Game):
                 if move[1] == 0:
                     if move[0].valor[0] == pontas[0].valor[0] or move[0].valor[0] == pontas[0].valor[1]:
                         move[0].position = 1
+                        if state.board[0].position == -1:
+                            state.board[0].position = 1
                     elif move[0].valor[1] == pontas[0].valor[0] or move[0].valor[1] == pontas[0].valor[1]:
                         move[0].position = 0
-                    board.insert(0, move)
+                        if state.board[0].position == -1:
+                            state.board[0].position = 1
+                    board.insert(0, move[0])
                 elif move[1] == 1:
                     if move[0].valor[0] == pontas[1].valor[0] or move[0].valor[0] == pontas[1].valor[1]:
                         move[0].position = 1
                     elif move[0].valor[1] == pontas[1].valor[0] or move[0].valor[1] == pontas[1].valor[1]:
                         move[0].position = 0
-                    board.append(move)
+                    board.append(move[0])
             else:
                 move[0].position = -1
                 board.append(move[0])
             if state.to_move == 0:
+                print(move[0])
                 pedras.remove(move[0])
+                print(len(pedras))
             else:
                 pedras_restantes.remove(move[0])
 
@@ -290,7 +296,6 @@ class Domino(Game):
                     return self.utility(state, self.to_move(self.initial))
 
 
-
 d = Domino()
 board = [Pedra(0, 0, -1), Pedra(3, 0, 0), Pedra(1, 3, 0), Pedra(1, 1, 1), Pedra(1, 2, 1), Pedra(2, 2, 0),
          Pedra(3, 2, 0), Pedra(3, 3, 1), Pedra(6, 3, 0), Pedra(6, 6, 1), Pedra(2, 6, 0), Pedra(5, 2, 0), Pedra(1, 5, 0),
@@ -300,7 +305,27 @@ pedras_restantes = [Pedra(1, 0, -1), Pedra(5, 5, -1), Pedra(6, 5, -1),
                     Pedra(1, 6, -1), Pedra(4, 5, -1), Pedra(4, 6, -1),
                     Pedra(0, 2, -1), Pedra(0, 5, -1), Pedra(6, 0, -1)]
 #GameState = namedtuple('GameState', 'to_move, pedras,pedras_restantes, utility, board')
+state = GameState(to_move=0, pedras=pedras, pedras_restantes=pedras_restantes, utility=0, board=board)
+acoes = d.actions(state)
+print("Jogador")
+
+for i in acoes:
+    print("(", i[0], ", ponta=", i[1], ")")
+new_state = d.result(state, acoes[0])
+print("Após jogar pedra ",  acoes[0][0], " na ponta ", acoes[0][1])
+print("Pedras")
+for i in new_state.pedras:
+    print(i)
+print("Pedras Restantes")
+for i in new_state.pedras_restantes:
+    print(i)
+print("Utilidade")
+print(new_state.utility)
+print("Board")
+for i in new_state.board:
+    print(i)
 state = GameState(to_move=1, pedras=pedras, pedras_restantes=pedras_restantes, utility=0, board=board)
 acoes = d.actions(state)
+print("Adversário")
 for i in acoes:
     print("(", i[0], ", ponta=", i[1], ")")
