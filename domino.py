@@ -2,6 +2,7 @@ import numpy as np
 from Game import Game, StochasticGame
 from collections import namedtuple
 import random
+from utils import argmax, vector_add
 import time
 
 infinity = float('inf')
@@ -71,6 +72,47 @@ def random_player(game, state):
     """A player that chooses a legal move at random."""
     return random.choice(game.actions(state))
 
+def expectiminimax(state, game):
+    """Return the best move for a player after dice are thrown. The game tree
+	includes chance nodes along with min and max nodes. [Figure 5.11]"""
+    player = game.to_move(state)
+
+    def max_value(state):
+        v = -infinity
+        #for i in state.moves:
+        #    print("(", i[0], ", ponta=", i[1], ")")
+        for a in game.actions(state):
+            v = max(v, chance_node(state, a))
+        return v
+
+    def min_value(state):
+        v = infinity
+        #for i in state.moves:
+        #    print("(", i[0], ", ponta=", i[1], ")")
+        for a in game.actions(state):
+            v = min(v, chance_node(state, a))
+        return v
+
+    def chance_node(state, action):
+        res_state = game.result(state, action)
+        if game.terminal_test(res_state):
+            return game.utility(res_state, player)
+        sum_chances = 0
+        num_chances = len(game.chances(res_state))
+        for chance in game.chances(res_state):
+            res_state = game.outcome(res_state, chance)
+            util = 0
+            if res_state.to_move == player:
+                util = max_value(res_state)
+            else:
+                util = min_value(res_state)
+            sum_chances += util * game.probability(chance)
+        return sum_chances / num_chances
+
+    # Body of expectiminimax:
+    return argmax(game.actions(state),
+                  key=lambda a: chance_node(state, a), default=None)
+
 class Pedra:
 
     def __init__(self, a, b,position):
@@ -78,12 +120,7 @@ class Pedra:
         self.position = position
 
     def __eq__(self, other):
-        print("Comp ",self.valor)
-        if self.valor[0] == other.valor[0] and self.valor[1] == other.valor[1]:
-            return True
-        if self.valor[0] == other.valor[1] and self.valor[1] == other.valor[0]:
-            return True
-        return False
+        return (self.valor[0] == other.valor[0] and self.valor[1] == other.valor[1]) or (self.valor[0] == other.valor[1] and self.valor[1] == other.valor[0])
 
     def igual(self, p):
         if p.position == -1:
@@ -108,6 +145,18 @@ class Pedra:
         #return " ___\n| " + str(self.valor[0]) + " |\n|___|\n| " + str(self.valor[1]) + " |\n|___|"
 
 
+def imprimestate(res_state):
+    print("To move: ", res_state.to_move)
+    print("Ponta 1 = ", res_state.ponta1, " Ponta 2 = ", res_state.ponta2)
+    print("Pedras")
+    for i in res_state.pedras:
+        print(i)
+    print("Restantes")
+    for i in res_state.pedras_restantes:
+        print(i)
+    print("Moves")
+    for i in res_state.moves:
+        print("(", i[0], ", ponta=", i[1], ")")
 
 class Domino(StochasticGame):
 
@@ -117,7 +166,7 @@ class Domino(StochasticGame):
         pedras_restantes = []
         for i in range(1, 4):
             pedras_restantes += self.jogadores[i]
-        self.initial = GameState(to_move=0, pedras=self.jogadores[0], pedras_restantes=pedras_restantes,ponta1=None,ponta2=None, moves=[],utility=0)
+        self.initial = GameState(to_move=0, pedras=self.jogadores[0], pedras_restantes=pedras_restantes, ponta1=None,ponta2=None, moves=self.moves(0,self.jogadores[0], pedras_restantes, None, None),utility=0)
 
     def cria_domino(self):
         pedras = []
@@ -142,17 +191,17 @@ class Domino(StochasticGame):
     def actions(self, state):
         return state.moves
 
-    def moves(self, state):
+    def moves(self,to_move,pedras,pedras_restantes,ponta1,ponta2):
         moves = []
         i = 0
-        if state.to_move == 0:
+        if to_move == 0:
 
-            for pedra in state.pedras:
-                if state.ponta1 is not None:
-                    if pedra.igual(state.ponta1):
+            for pedra in pedras:
+                if ponta1 is not None:
+                    if pedra.igual(ponta1):
                         i += 1
                         moves.append((pedra, 0))
-                    elif pedra.igual(state.ponta2):
+                    elif pedra.igual(ponta2):
                         i += 1
                         moves.append((pedra, 1))
                 else:
@@ -160,10 +209,10 @@ class Domino(StochasticGame):
         else:
             for pedra in pedras_restantes:
                 if state.ponta1 is not None:
-                    if pedra.igual(state.ponta1):
+                    if pedra.igual(ponta1):
                         i += 1
                         moves.append((pedra, 0))
-                    elif pedra.igual(state.ponta2):
+                    elif pedra.igual(ponta2):
                         i += 1
                         moves.append((pedra, 1))
                 else:
@@ -236,12 +285,12 @@ class Domino(StochasticGame):
                 if move[1] == 0:
                     if move[0].valor[0] == state.ponta1.valor[0] or move[0].valor[0] == state.ponta1.valor[1]:
                         move[0].position = 1
-                        if state.board[0].position == -1:
-                            state.board[0].position = 1
+                        if state.ponta1.position == -1:
+                            state.ponta1.position = 1
                     elif move[0].valor[1] == state.ponta1.valor[0] or move[0].valor[1] == state.ponta1.valor[1]:
                         move[0].position = 0
-                        if state.board[0].position == -1:
-                            state.board[0].position = 1
+                        if state.ponta1.position == -1:
+                            state.ponta1.position = 1
                     ponta1 = move[0]
                 elif move[1] == 1:
                     if move[0].valor[0] == state.ponta2.valor[0] or move[0].valor[0] == state.ponta2.valor[1]:
@@ -261,7 +310,7 @@ class Domino(StochasticGame):
 
         to_move = (state.to_move + 1) % 4
         new_state = GameState(to_move=to_move, pedras=pedras, pedras_restantes=pedras_restantes, ponta1=ponta1,
-                              ponta2=ponta2, moves=self.moves(state), utility=utility)
+                              ponta2=ponta2, moves=self.moves(to_move, pedras, pedras_restantes, ponta1, ponta2), utility=utility)
         return new_state
 
     def ponta1(self, move):
@@ -324,26 +373,30 @@ ponta1 = Pedra(0, 0, -1)
 ponta2 = Pedra(3, 4, 0)
 pedras = [Pedra(3, 5, -1), Pedra(4, 2, -1), Pedra(4, 0, -1)]
 pedras_restantes = [Pedra(1, 0, -1), Pedra(5, 5, -1), Pedra(6, 5, -1),
-                    Pedra(1, 6, -1), Pedra(4, 5, -1), Pedra(4, 6, -1),
+                    Pedra(1, 6, -1), Pedra(6, 3, -1), Pedra(4, 6, -1),
                     Pedra(0, 2, -1), Pedra(0, 5, -1), Pedra(6, 0, -1)]
 #GameState = namedtuple('GameState', 'to_move, pedras,pedras_restantes, utility, board')
-state = GameState(to_move=1, pedras=pedras, pedras_restantes=pedras_restantes, ponta1=ponta1, ponta2=ponta2,
+state = GameState(to_move=0, pedras=pedras, pedras_restantes=pedras_restantes, ponta1=ponta1, ponta2=ponta2,
                   moves=[(Pedra(3, 5, 1), 1), (Pedra(4, 0, 0), 0)], utility=0)
+print("Ação")
+print(expectiminimax(d.initial, d)[0])
+
+"""acoes = d.actions(state2)
 
 
-print("Ações")
-state2 = GameState(to_move=1, pedras=pedras, pedras_restantes=pedras_restantes, ponta1=ponta1, ponta2=ponta2,
-                  moves=d.moves(state), utility=0)
-print("Jogador")
-acoes = d.actions(state2)
 for i in acoes:
     print("(", i[0], ", ponta=", i[1], ")")
+
 print("Chances")
 for i in d.chances(state2):
-    print("Ponta ", i[0])
+    print("\n\nPonta ", i[0])
     for moves in i[1]:
         print("(",moves[0], ", ponta=", moves[1], ")")
     print("Probabilidade: ", d.probability(i))
+    print("Ações")
+    for s in d.outcome(state2, i).moves:
+        print("(", s[0], ", ponta=", s[1], ")")"""
+
 """new_state = d.result(state, acoes[0])
 print("Após jogar pedra ",  acoes[0][0], " na ponta ", acoes[0][1])
 print("Pedras")
