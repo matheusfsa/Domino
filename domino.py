@@ -77,9 +77,11 @@ def expectiminimax(game,state):
     player = game.to_move(state)
     d = 0
     n = len(state.pedras)
-    if n == 7:
+    if n == 7 or n == 6:
         d = 7
-    elif n<= 6:
+    elif n == 5 or n == 4:
+        d = 6
+    else:
         d = 9
     def max_value(state, depth):
         #print("Profundidade: ", depth)
@@ -222,6 +224,22 @@ class Domino(StochasticGame):
                 else:
                     res += 1
         return res
+
+    def soma_pedras_max(self, state):
+        soma = 0
+        for pedra in state.pedras:
+            soma += pedra.getValor()
+        return soma
+
+    def eval(self, state, player):
+        n = len(state.pedras)
+        m = len(state.pedras_restantes)/3
+        buchas = self.buchas(state.pedras)
+        n_pedras = n
+        delta = m - n
+        movimentos = self.moves(player, state.pedras, state.pedras_restantes, state.ponta1, state.ponta2, player)
+        soma_pedras = self.soma_pedras_max(state)
+        return -0.2*buchas - 0.2*n_pedras + 0.9*delta + 0.7*len(movimentos) - 0.2*soma_pedras
 
     def eval(self, state, player):
         n = len(state.pedras)
