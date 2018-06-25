@@ -13,26 +13,33 @@ def alphabeta_search(state, game):
     As in [Figure 5.7], this version searches all the way to the leaves."""
 
     player = game.to_move(state)
-
+    d = 0
+    n = len(state.pedras)
+    if n == 7:
+        d = 7
+    elif n <= 6:
+        d = 9
     # Functions used by alphabeta
-    def max_value(state, alpha, beta):
+    def max_value(state, alpha, beta,depth):
+        if depth >= d:
+            return game.eval(state, player)
         if game.terminal_test(state):
             print("terminal")
             return game.utility(state, player)
         v = -infinity
         for a in game.actions(state):
-            v = max(v, min_value(game.result(state, a), alpha, beta))
+            v = max(v, min_value(game.result(state, a,player), alpha, beta, depth+1))
             if v >= beta:
                 return v
             alpha = max(alpha, v)
         return v
 
-    def min_value(state, alpha, beta):
+    def min_value(state, alpha, beta,depth):
         if game.terminal_test(state):
             return game.utility(state, player)
         v = infinity
         for a in game.actions(state):
-            v = min(v, max_value(game.result(state, a), alpha, beta))
+            v = min(v, max_value(game.result(state, a,player), alpha, beta, depth+1))
             if v <= alpha:
                 return v
             beta = min(beta, v)
@@ -43,7 +50,7 @@ def alphabeta_search(state, game):
     beta = infinity
     best_action = None
     for a in game.actions(state):
-        v = min_value(game.result(state, a), best_score, beta)
+        v = min_value(game.result(state, a,player), best_score, beta,1)
         if v > best_score:
             best_score = v
             best_action = a
@@ -77,12 +84,12 @@ def expectiminimax(game,state):
     player = game.to_move(state)
     d = 0
     n = len(state.pedras)
-    if n == 7 or n == 6:
+    if n == 7:
         d = 7
-    elif n == 5 or n == 4:
-        d = 6
-    else:
+    elif n <= 6:
         d = 9
+    if state.utility !=0 or n == 0 or len(state.pedras_restantes) <= 3:
+        return None
     def max_value(state, depth):
         #print("Profundidade: ", depth)
         v = -infinity
@@ -160,11 +167,12 @@ class Pedra:
     def getValor(self):
         return self.valor[0] + self.valor[1]
 
+    def tupla(self):
+        return self.valor[0], self.valor[1]
+
     def __str__(self):
-        if self.position != 1:
-            return "(" + str(self.valor[0]) + ", " + str(self.valor[1]) + ")"
-        else:
-            return "(" + str(self.valor[1]) + ", " + str(self.valor[0]) + ")"
+        return "(" + str(self.valor[0]) + ", " + str(self.valor[1]) + ", " + str(self.position) +")"
+
         #return " ___\n| " + str(self.valor[0]) + " |\n|___|\n| " + str(self.valor[1]) + " |\n|___|"
 
 
@@ -180,6 +188,7 @@ def imprimestate(res_state):
     print("Moves")
     for i in res_state.moves:
         print("(", i[0], ", ponta=", i[1], ")")
+    print("Utilidade ", res_state.utility)
 
 class Domino(StochasticGame):
 
@@ -191,7 +200,8 @@ class Domino(StochasticGame):
             pedras_restantes += self.jogadores[i]
         self.initial = GameState(to_move=0, pedras=self.jogadores[0].copy(), pedras_restantes=pedras_restantes, ponta1=None,ponta2=None,
                                  moves=self.moves(0,self.jogadores[0], pedras_restantes, None, None, 0), utility=0)
-
+    def reset(self):
+        self.__init__()
     def cria_domino(self):
         pedras = []
         for i in range(7):
@@ -231,32 +241,45 @@ class Domino(StochasticGame):
             soma += pedra.getValor()
         return soma
 
+    def checa_diversidade_max(self, state):
+        nipes = [False] * 7;
+        res = 0
+        for pedra in state.pedras:
+            if 0 == pedra.valor[0] or 0 == pedra.valor[1]:
+                nipes[0] = True
+            if 1 == pedra.valor[0] or 1 == pedra.valor[1]:
+                nipes[1] = True
+            if 2 == pedra.valor[0] or 2 == pedra.valor[1]:
+                nipes[2] = True
+            if 3 == pedra.valor[0] or 3 == pedra.valor[1]:
+                nipes[3] = True
+            if 4 == pedra.valor[0] or 4 == pedra.valor[1]:
+                nipes[4] = True
+            if 5 == pedra.valor[0] or 5 == pedra.valor[1]:
+                nipes[5] = True
+            if 6 == pedra.valor[0] or 6 == pedra.valor[1]:
+                nipes[6] = True
+        for e in nipes:
+            if e == True:
+                res = res + 1
+        return res
+
     def eval(self, state, player):
         n = len(state.pedras)
-        m = len(state.pedras_restantes)/3
+        m = len(state.pedras_restantes) / 3
         buchas = self.buchas(state.pedras)
         n_pedras = n
         delta = m - n
         movimentos = self.moves(player, state.pedras, state.pedras_restantes, state.ponta1, state.ponta2, player)
         soma_pedras = self.soma_pedras_max(state)
-        return -0.2*buchas - 0.2*n_pedras + 0.9*delta + 0.7*len(movimentos) - 0.2*soma_pedras
-
-    def eval(self, state, player):
-        n = len(state.pedras)
-        m = len(state.pedras_restantes)/3
-        to_move = 4 if state.to_move == 0 else state.to_move - 1
-        if to_move == player:
-            #print("player : ", player)
-            buchas = self.buchas(state.pedras)
-            n_pedras = n
-            delta = n - m
-            return -0.2*buchas - 0.2*n_pedras + 0.9*delta
-        else:
-            buchas = self.buchas(state.pedras_restantes)/3
-            n_pedras = m
-
-            delta = m - n
-            return -0.1 * buchas - 0.1 * n_pedras + 5 * delta
+        diversidade = self.checa_diversidade_max(state)
+        mov = len(movimentos)
+        if player <= 1:
+            return -0.9 * buchas - 0.2 * n_pedras + 0.7 * delta + 0.5 * mov - 0.4*soma_pedras + 0.6*diversidade
+        if player == 2:
+            return -0.9 * buchas - 0.2 * n_pedras + 0.7 * delta - 0.4 * soma_pedras
+        if player == 3:
+            return 0.5*mov + 0.6*diversidade
 
     def moves(self,to_move,pedras, pedras_restantes, ponta1, ponta2, player):
         moves = []
@@ -289,12 +312,17 @@ class Domino(StochasticGame):
             moves.append((Pedra(-1, -1, -1), -1))
         return moves
 
-    def compute_utility(self, to_move, pedras, pedras_restantes, ponta1, ponta2, move,player):
+    def compute_utility(self, to_move, pedras, pedras_restantes, ponta1, ponta2, move, player):
 
         if move[0].valor[0] == -1 and ponta1 is not None:
-            for p in pedras_restantes:
-                if p.igual(ponta1) or p.igual(ponta2):
-                    return 0
+            if to_move == player:
+                for p in pedras_restantes:
+                    if p.igual(ponta1) or p.igual(ponta2):
+                        return 0
+            else:
+                for p in pedras:
+                    if p.igual(ponta1) or p.igual(ponta2):
+                        return 0
             total = len(pedras)
             soma = 0
             for pedra in pedras:
@@ -310,9 +338,9 @@ class Domino(StochasticGame):
                     return 4
             else:
                 if to_move != 0:
-                    return 4
-                else:
                     return -1
+                else:
+                    return 4
         elif move[0].valor[0] != -1:
             if to_move == player:
                 if len(pedras) == 1:
@@ -321,7 +349,7 @@ class Domino(StochasticGame):
                     return 0
             else:
                 if len(pedras_restantes) == 3:
-                    return 4
+                    return -1
                 else:
                     return 0
         else:
@@ -348,14 +376,25 @@ class Domino(StochasticGame):
     def display(self, state):
         imprimestate(state)
 
-    def vitoria(self, i, state):
-        print("Utility: ", state.utility)
-        if state.utility == 4:
-            return i
-        elif state.utility == 0:
-            return -1
+    def pode_jogar(self, i, state):
+        if state.ponta1 is not None:
+            for pedra in self.jogadores[i]:
+                if pedra.igual(state.ponta1) or pedra.igual(state.ponta2):
+                    return True
+            return False
         else:
-            return self.menor_soma()
+            return True
+
+    def vitoria(self, state):
+        for i in range(4):
+            if len(self.jogadores[i]) == 0:
+                return i
+        for i in range(4):
+            if self.pode_jogar(i, state):
+                return -1
+        return self.menor_soma()
+
+
 
 
 
@@ -448,31 +487,17 @@ class Domino(StochasticGame):
     def play_game(self, *players):
         """Play an n-person, move-alternating game."""
         state = self.initial
-        inicio = time.time()
-        k = 0
         while True:
-            print("Rodada: ", k)
-            k += 1
             for player in players:
-                #print("Antes")
-                #imprimestate(state)
                 move = player(self, state)
-                self.imprime_jogadores()
-                print("To_move: ", state.to_move)
-                print("Pontas: ", state.ponta1, " ", state.ponta2)
-                print("Move: ", move[0], ", ", move[1])
-                #print("Move: ", move[0], ", ", move[1])
                 if move[0].valor[0] != -1:
                     self.jogadores[state.to_move].remove(move[0])
-
                 state_res = self.result(state, move, state.to_move)
-                vencedor = self.vitoria(state.to_move, state_res)
+                vencedor = self.vitoria(state_res)
+
                 if vencedor != -1:
-                    fim = time.time()
-                    #print("Jogador Vencedor:", vencedor)
                     self.imprime_jogadores()
-                    #print("Pontas: ", state_res.ponta1, " ", state_res.ponta2)
-                    #print("Tempo: ", fim - inicio)
+                    print("Vencedor: ",vencedor)
                     return vencedor
                 ponta1 = state_res.ponta1
                 ponta2 = state_res.ponta2
@@ -484,75 +509,27 @@ class Domino(StochasticGame):
                 state = GameState(to_move=to_move, pedras=self.jogadores[to_move].copy(), pedras_restantes=pedras_restantes, ponta1=ponta1, ponta2=ponta2,
                                   moves=self.moves(to_move, self.jogadores[to_move], pedras_restantes, ponta1, ponta2, to_move),
                                   utility=self.compute_utility(to_move, self.jogadores[to_move], pedras_restantes, ponta1, ponta2, move,to_move))
-                #print("Depois")
-                #imprimestate(state)
 
 
-"""Testes"""
-d = Domino()
-#move = expectiminimax(d,d.initial)
-#d.imprime_jogadores()
-#print("\n", move[0])
-#print(d.play_game(expectiminimax, random_player, random_player, random_player))
-"""jogadores = np.zeros(4)
-s = 0
-for i in range(10):
+"""
+v = 0
+for i in range(20):
     d = Domino()
-    vencedor = d.play_game(expectiminimax, random_player, random_player, random_player)
-    s += 1
-print(s/10)"""
-"""board = [Pedra(0, 0, -1), Pedra(3, 0, 0), Pedra(1, 3, 0), Pedra(1, 1, 1), Pedra(1, 2, 1), Pedra(2, 2, 0),
-         Pedra(3, 2, 0), Pedra(3, 3, 1), Pedra(6, 3, 0), Pedra(6, 6, 1), Pedra(2, 6, 0), Pedra(5, 2, 0), Pedra(1, 5, 0),
-         Pedra(4, 1, 0), Pedra(4, 4, 0), Pedra(3, 4, 0)]"""
-ponta1 = Pedra(1, 2, 1)
-ponta2 = Pedra(5, 2, 0)
-pedras = [Pedra(3, 5, -1), Pedra(4, 2, -1), Pedra(4, 0, -1),Pedra(4, 1, 0),Pedra(1, 1, 1)]
-pedras_restantes = [Pedra(1, 0, -1), Pedra(5, 5, -1), Pedra(6, 5, -1),
-                    Pedra(1, 6, -1), Pedra(6, 3, -1), Pedra(4, 6, -1),
-                    Pedra(0, 2, -1), Pedra(0, 5, -1), Pedra(6, 0, -1),
-                    Pedra(3, 4, 0),Pedra(4, 4, 0), Pedra(0, 0, -1),
-                    Pedra(3, 0, 0), Pedra(1, 3, 0),  Pedra(1, 5, 0)]
-#GameState = namedtuple('GameState', 'to_move, pedras,pedras_restantes, utility, board')
-state = GameState(to_move=0, pedras=pedras, pedras_restantes=pedras_restantes, ponta1=ponta1, ponta2=ponta2,
-                  moves=d.moves(0, pedras, pedras_restantes, ponta1, ponta2, 0), utility=0)
-#print("Ação")
-#state = d.initial
-#move = expectiminimax(d,d.initial)
-#file = open("res.txt","a")
-#file.write(move[0].__str__() + " ponta = " + str(move[1])+"\n")
+    if d.play_game(expectiminimax, random_player, random_player, random_player) == 0:
+        v += 1
+print("Vitórias: ", v)
+Testes
 
-#print(d.play_game(expectiminimax, random_player, random_player, random_player))
-"""acoes = d.actions(state2)
+for i in range(20):
+    d = Domino()
+    if play_game(domino_decision_environment, q_agent, random_player, random_player, random_player) == 0:
+            v += 1
 
 
-for i in acoes:
-    print("(", i[0], ", ponta=", i[1], ")")
-
-print("Chances")
-for i in d.chances(state2):
-    print("\n\nPonta ", i[0])
-    for moves in i[1]:
-        print("(",moves[0], ", ponta=", moves[1], ")")
-    print("Probabilidade: ", d.probability(i))
-    print("Ações")
-    for s in d.outcome(state2, i).moves:
-        print("(", s[0], ", ponta=", s[1], ")")"""
-
-"""new_state = d.result(state, acoes[0])
-print("Após jogar pedra ",  acoes[0][0], " na ponta ", acoes[0][1])
-print("Pedras")
-for i in new_state.pedras:
-    print(i)
-print("Pedras Restantes")
-for i in new_state.pedras_restantes:
-    print(i)
-print("Utilidade")
-print(new_state.utility)
-print("Board")
-print("Ponta1", new_state.ponta1)
-print("Ponta2", new_state.ponta2)"""
-"""state = GameState(to_move=1, pedras=pedras, pedras_restantes=pedras_restantes, utility=0, board=board)
-acoes = d.actions(state)
-print("Adversário")
-for i in acoes:
-    print("(", i[0], ", ponta=", i[1], ")")"""
+d = Domino()
+d.jogadores[0] = [Pedra(6,1,0),Pedra(2,2,0)]
+d.jogadores[1] = [Pedra(2,6,1)]
+d.jogadores[2] = [Pedra(2,3,1)]
+d.jogadores[3] = [Pedra(4,0,1), Pedra(3,1,0)]
+print(d.menor_soma())
+"""
